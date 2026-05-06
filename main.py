@@ -15,7 +15,7 @@ from maya import mel as mel
 from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
 
 unit_modelling_toolkit_obj_name = "UnitModellingToolkitWindow"
-unit_modelling_toolkit_data_file = Path("/Users/shiinaayame/Downloads/test_mytool.json")
+unit_modelling_toolkit_data_file = Path(cmds.workspace(q=True, directory=True) + "UnitModellingToolkit.json")
 
 class MyCustomWindow(MayaQWidgetDockableMixin, QtWidgets.QDialog):
     def __init__(self, parent=None):
@@ -167,6 +167,7 @@ class MyCustomWindow(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         cmds.makeIdentity(copying_obj_name, apply=True, normal=False,
                           rotate=True, scale=True, translate=True,
                           preserveNormals=True)
+        cmds.xform(copying_obj_name, centerPivots=True)
         if not cmds.objExists("UnitModellingToolkitGP"):
             cmds.group(empty=True, name="UnitModellingToolkitGP")
         cmds.setAttr("UnitModellingToolkitGP.visibility", False)
@@ -198,7 +199,6 @@ class MyCustomWindow(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         if not selected_obj_ls:
             return
         selected_obj = selected_obj_ls[0]
-        selected_pos = cmds.xform(selected_obj, q=True, rotatePivot=True, worldSpace=True)
         using_obj = self.mesh_dropdown.currentText().strip()
         using_obj_name = f"UnitModellingToolkitGP|{using_obj}"
         if not cmds.objExists(using_obj_name):
@@ -228,8 +228,7 @@ class MyCustomWindow(MayaQWidgetDockableMixin, QtWidgets.QDialog):
             using_obj_duplicate = using_obj_duplicate_real
         using_obj_duplicate = cmds.parent(using_obj_duplicate, world=True)[0]
         cmds.setAttr(f"{using_obj_duplicate}.visibility", True)
-        print(selected_pos)
-        cmds.move(selected_pos[0], selected_pos[1], selected_pos[2], using_obj_duplicate, rotatePivotRelative=True)
+        cmds.matchTransform(using_obj_duplicate, selected_obj)
         cmds.makeIdentity(using_obj_duplicate, apply=True, normal=False,
                           rotate=True, scale=True, translate=True,
                           preserveNormals=True)
