@@ -109,6 +109,14 @@ class MyCustomWindow(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         self.stacked_widget.addWidget(component_mode_widget)
 
     def on_copy_mesh(self):
+        selected_obj_raw = cmds.ls(sl=True)
+        for obj_raw in selected_obj_raw:
+            if cmds.objectType(obj_raw) != "transform":
+                cmds.inViewMessage(amg='<span style="color:#FF0000;">Invalid Component Type !</span>', 
+                   pos='botRight', 
+                   fade=True)
+                return
+
         def naming_dialog() -> str | None:
             copy_name_dialog = cmds.promptDialog(
                 title = "Copying Object Name",
@@ -140,7 +148,6 @@ class MyCustomWindow(MayaQWidgetDockableMixin, QtWidgets.QDialog):
             copying_obj_name = f"{root_name}{c}"
             c += 1
 
-        selected_obj_raw = cmds.ls(sl=True)
         if not selected_obj_raw:
             return
         selected_obj = cmds.duplicate(selected_obj_raw)
@@ -258,6 +265,8 @@ class MyCustomWindow(MayaQWidgetDockableMixin, QtWidgets.QDialog):
             del self.tool_data[self.current_file_name]["stored_components"][component_to_delete]
         with open(unit_modelling_toolkit_data_file, "w",  encoding="utf-8") as f:
             json.dump(self.tool_data, f, ensure_ascii=False, indent=3)
+        self.component_dropdown.clear()
+        self.component_dropdown.addItems([i for i in self.tool_data[self.current_file_name]["stored_components"]])
 
     def on_select_component(self):
         cmds.select(cl=True)
@@ -272,6 +281,11 @@ class MyCustomWindow(MayaQWidgetDockableMixin, QtWidgets.QDialog):
             cmds.inViewMessage(amg='<span style="color:#FF0000;">Selection failed</span>', 
                     pos='botRight', 
                     fade=True)
+            del self.tool_data[self.current_file_name]["stored_components"][selected_component_gp]
+            with open(unit_modelling_toolkit_data_file, "w", encoding="utf-8") as f:
+                json.dump(self.tool_data, f, ensure_ascii=False, indent=3)
+            self.component_dropdown.clear()
+            self.component_dropdown.addItems([i for i in self.tool_data[self.current_file_name]["stored_components"]])
         
     def toggle_mode(self):
         if self.mode_select_box.isChecked():
