@@ -20,10 +20,12 @@ class MyCustomWindow(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         super(MyCustomWindow, self).__init__(parent=parent)
         
         if not unit_modelling_toolkit_data_file.exists():
-            print("Data file not exist")
-            return
-        with open(unit_modelling_toolkit_data_file, "r", encoding="utf-8") as f:
-            self.tool_data = json.load(f)
+            self.tool_data = {"stored_items" : []}
+            with open(unit_modelling_toolkit_data_file, "w", encoding="utf-8") as f:
+                json.dump(self.tool_data, f)
+        else:
+            with open(unit_modelling_toolkit_data_file, "r", encoding="utf-8") as f:
+                self.tool_data = json.load(f)
         self.setWindowTitle("Unit Modelling Toolkits")
         self.setObjectName(unit_modelling_toolkit_obj_name)
         self.setMinimumSize(300, 100)
@@ -101,10 +103,35 @@ class MyCustomWindow(MayaQWidgetDockableMixin, QtWidgets.QDialog):
             json.dump(self.tool_data, f)
 
     def on_delete(self):
-        pass
+        obj_to_delete = self.dropdown.currentText()
+        obj_name = f"UnitModellingToolkitGP|{obj_to_delete.strip()}"
+        if cmds.objExists(obj_name):
+            cmds.delete(obj_name)
+        current_stored = self.tool_data.get("stored_items",[])
+        if obj_to_delete in current_stored:
+            current_stored.remove(obj_to_delete)
+            self.tool_data["stored_items"] = current_stored
+        with open(unit_modelling_toolkit_data_file, "w", encoding="utf-8") as f:
+            json.dump(self.tool_data, f)
 
     def on_place(self):
-        pass
+        selected_obj_ls = cmds.ls(sl=True)
+        if not selected_obj_ls:
+            return
+        selected_obj = selected_obj_ls[0]
+        selected_pos = cmds.xform(selected_obj, q=True, rotatePivot=True)
+        using_obj = self.dropdown.currentText().strip()
+        using_obj_name = f"UnitModellingToolkitGP|{using_obj}"
+        if not cmds.objExists(using_obj_name):
+            return
+        using_obj_duplicate = cmds.duplicate(using_obj_name)
+        using_obj_duplicate = cmds.group(using_obj_duplicate, world=True)
+        cmds.setAttr(f"{using_obj_duplicate}.visibility", True)
+        cmds.move(0, 0, 0, using_obj_duplicate, rotatePivotRelative=True)
+        cmds.makeIdentity(using_obj_duplicate, apply=True, normal=False,
+                          rotate=True, scale=True, translate=True,
+                          preserveNormals=True)
+        
 
 def show_window():
     if cmds.window(unit_modelling_toolkit_obj_name, exists=True):
