@@ -4,7 +4,8 @@ import re
 
 from PySide6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel, 
-    QComboBox, QPushButton
+    QComboBox, QPushButton, QCheckBox,
+    QStackedWidget, QWidget
     )
 from PySide6 import QtWidgets
 from PySide6 import QtCore
@@ -21,41 +22,78 @@ class MyCustomWindow(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         super(MyCustomWindow, self).__init__(parent=parent)
         
         if not unit_modelling_toolkit_data_file.exists():
-            self.tool_data = {"stored_items" : []}
+            self.tool_data = {"stored_items" : [], "stored_components" : {}}
             with open(unit_modelling_toolkit_data_file, "w", encoding="utf-8") as f:
-                json.dump(self.tool_data, f)
+                json.dump(self.tool_data, f, ensure_ascii=False, indent=3)
         else:
             with open(unit_modelling_toolkit_data_file, "r", encoding="utf-8") as f:
                 self.tool_data = json.load(f)
         self.setWindowTitle("Unit Modelling Toolkits")
         self.setObjectName(unit_modelling_toolkit_obj_name)
-        self.setMinimumSize(300, 100)
-       
-        self.setup_ui()
+        self.setMinimumSize(300, 150)
 
-    def setup_ui(self):
-        layout = QVBoxLayout(self)
+        self.layout = QVBoxLayout(self)
+        self.mode_select_box = QCheckBox("Mesh-Mode")
+        self.mode_select_box.setChecked(True)
+        self.mode_select_box.toggled.connect(self.toggle_mode)
+        self.layout.addWidget(self.mode_select_box)
+
+        self.stacked_widget = QStackedWidget()
+        self.layout.addWidget(self.stacked_widget)
         
-        self.label = QLabel("Copied Assets : ")
-        layout.addWidget(self.label)
-        self.dropdown = QComboBox()
-        self.dropdown.clear()
-        self.dropdown.addItems(self.tool_data.get("stored_items", []))
-        layout.addWidget(self.dropdown)
+        self.setup_mesh_mode_ui()
+        self.setup_component_mode_ui()
+        self.stacked_widget.setCurrentIndex(0)
+
+    def setup_mesh_mode_ui(self): 
+        mesh_mode_widget = QWidget()
+        mesh_layout = QVBoxLayout(mesh_mode_widget)
+        mesh_label = QLabel("Copied Assets : ")
+        mesh_layout.addWidget(mesh_label)
+        self.mesh_dropdown = QComboBox()
+        self.mesh_dropdown.clear()
+        self.mesh_dropdown.addItems(self.tool_data.get("stored_items", []))
+        mesh_layout.addWidget(self.mesh_dropdown)
         
         sublayout1 = QHBoxLayout()
-        self.copy_btn = QPushButton("Store")
-        self.copy_btn.clicked.connect(self.on_copy)
-        sublayout1.addWidget(self.copy_btn)
-        self.delete_btn = QPushButton("Delete")
-        self.delete_btn.clicked.connect(self.on_delete)
-        sublayout1.addWidget(self.delete_btn)
-        self.place_btn = QPushButton("Place")
-        self.place_btn.clicked.connect(self.on_place)
-        sublayout1.addWidget(self.place_btn)
-        layout.addLayout(sublayout1)
+        mesh_copy_btn = QPushButton("Store")
+        mesh_copy_btn.clicked.connect(self.on_copy_mesh)
+        sublayout1.addWidget(mesh_copy_btn)
+        mesh_delete_btn = QPushButton("Delete")
+        mesh_delete_btn.clicked.connect(self.on_delete_mesh)
+        sublayout1.addWidget(mesh_delete_btn)
+        mesh_place_btn = QPushButton("Place")
+        mesh_place_btn.clicked.connect(self.on_place_mesh)
+        sublayout1.addWidget(mesh_place_btn)
+        mesh_layout.addLayout(sublayout1)
 
-    def on_copy(self):
+        self.stacked_widget.addWidget(mesh_mode_widget)
+
+    def setup_component_mode_ui(self): 
+        component_mode_widget = QWidget()
+        component_layout = QVBoxLayout(component_mode_widget)
+        component_label = QLabel("Copied Component : ")
+        component_layout.addWidget(component_label)
+        self.component_dropdown = QComboBox()
+        self.component_dropdown.clear()
+        self.component_dropdown.addItems([i for i in self.tool_data.get("stored_components", {})])
+        component_layout.addWidget(self.component_dropdown)
+        
+        sublayout1 = QHBoxLayout()
+        component_copy_btn = QPushButton("Store")
+        component_copy_btn.clicked.connect(self.on_copy_component)
+        sublayout1.addWidget(component_copy_btn)
+        component_delete_btn = QPushButton("Delete")
+        component_delete_btn.clicked.connect(self.on_delete_component)
+        sublayout1.addWidget(component_delete_btn)
+        component_place_btn = QPushButton("Select")
+        component_place_btn.clicked.connect(self.on_select_component)
+        sublayout1.addWidget(component_place_btn)
+        component_layout.addLayout(sublayout1)
+
+        self.stacked_widget.addWidget(component_mode_widget)
+
+    def on_copy_mesh(self):
         def naming_dialog() -> str | None:
             copy_name_dialog = cmds.promptDialog(
                 title = "Copying Object Name",
@@ -66,13 +104,13 @@ class MyCustomWindow(MayaQWidgetDockableMixin, QtWidgets.QDialog):
                 dismissString = "Cancel"
             )
             if copy_name_dialog == "Confirm":
-                copying_obj_name = str(cmds.promptDialog(q=True, text=True))
+                copying_obj_name = str(cmds.promptDialog(q=True, text=True)).strip()
                 return copying_obj_name
             else:
                 return None
             
         copying_obj_name = naming_dialog() 
-        while re.match(r"[a-zA-Z_][a-zA-Z0-9_]*$", copying_obj_name) is None:
+        while copying_obj_name != "" and re.match(r"[a-zA-Z_][a-zA-Z0-9_]*$", copying_obj_name) is None:
             cmds.inViewMessage(amg='<span style="color:#FF0000;">Invalid Name !</span>', 
                    pos='botRight', 
                    fade=True)
@@ -114,13 +152,13 @@ class MyCustomWindow(MayaQWidgetDockableMixin, QtWidgets.QDialog):
 
         if "stored_items" in self.tool_data:
             self.tool_data["stored_items"].append(copying_obj_name)
-            self.dropdown.clear()
-            self.dropdown.addItems(self.tool_data["stored_items"])
+            self.mesh_dropdown.clear()
+            self.mesh_dropdown.addItems(self.tool_data["stored_items"])
         with open(unit_modelling_toolkit_data_file, "w", encoding="utf-8") as f:
-            json.dump(self.tool_data, f)
+            json.dump(self.tool_data, f, ensure_ascii=False, indent=3)
 
-    def on_delete(self):
-        obj_to_delete = self.dropdown.currentText()
+    def on_delete_mesh(self):
+        obj_to_delete = self.mesh_dropdown.currentText().strip()
         obj_name = f"UnitModellingToolkitGP|{obj_to_delete.strip()}"
         if cmds.objExists(obj_name):
             cmds.delete(obj_name)
@@ -129,17 +167,17 @@ class MyCustomWindow(MayaQWidgetDockableMixin, QtWidgets.QDialog):
             current_stored.remove(obj_to_delete)
             self.tool_data["stored_items"] = current_stored
         with open(unit_modelling_toolkit_data_file, "w", encoding="utf-8") as f:
-            json.dump(self.tool_data, f)
-        self.dropdown.clear()
-        self.dropdown.addItems(current_stored)
+            json.dump(self.tool_data, f, ensure_ascii=False, indent=3)
+        self.mesh_dropdown.clear()
+        self.mesh_dropdown.addItems(current_stored)
 
-    def on_place(self):
+    def on_place_mesh(self):
         selected_obj_ls = cmds.ls(sl=True)
         if not selected_obj_ls:
             return
         selected_obj = selected_obj_ls[0]
         selected_pos = cmds.xform(selected_obj, q=True, rotatePivot=True, worldSpace=True)
-        using_obj = self.dropdown.currentText().strip()
+        using_obj = self.mesh_dropdown.currentText().strip()
         using_obj_name = f"UnitModellingToolkitGP|{using_obj}"
         if not cmds.objExists(using_obj_name):
             cmds.inViewMessage(amg='<span style="color:#FF0000;">Object not exist</span>', 
@@ -150,9 +188,9 @@ class MyCustomWindow(MayaQWidgetDockableMixin, QtWidgets.QDialog):
                 current_stored.remove(using_obj)
                 self.tool_data["stored_items"] = current_stored
             with open(unit_modelling_toolkit_data_file, "w", encoding="utf-8") as f:
-                json.dump(self.tool_data, f)
-            self.dropdown.clear()
-            self.dropdown.addItems(current_stored)
+                json.dump(self.tool_data, f, ensure_ascii=False, indent=3)
+            self.mesh_dropdown.clear()
+            self.mesh_dropdown.addItems(current_stored)
             return
         using_obj_duplicate = cmds.duplicate(using_obj_name)
         if len(using_obj_duplicate) > 1:
@@ -173,6 +211,57 @@ class MyCustomWindow(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         cmds.makeIdentity(using_obj_duplicate, apply=True, normal=False,
                           rotate=True, scale=True, translate=True,
                           preserveNormals=True)
+        
+    def on_copy_component(self):
+        selected_component = cmds.ls(sl=True)
+        copy_name_dialog = cmds.promptDialog(
+            title = "Copying Object Name",
+            message = "Enter Object Name : ",
+            button = ["Confirm", "Cancel"],
+            defaultButton = "Confirm",
+            cancelButton = "Cancel",
+            dismissString = "Cancel"
+        )
+        if copy_name_dialog == "Confirm":
+            copying_component_name = str(cmds.promptDialog(q=True, text=True)).strip()
+        else:
+            return
+        copying_component_name = copying_component_name if copying_component_name != "" else selected_component[0]
+        if "stored_components" in self.tool_data:
+            self.tool_data["stored_components"][copying_component_name] = selected_component
+        else:
+            self.tool_data["stored_components"] = {}
+        with open(unit_modelling_toolkit_data_file, "w", encoding="utf-8") as f:
+            json.dump(self.tool_data, f, ensure_ascii=False, indent=3)
+        self.component_dropdown.clear()
+        self.component_dropdown.addItems([i for i in self.tool_data.get("stored_components", {})])
+    
+    def on_delete_component(self):
+        component_to_delete = self.component_dropdown.currentText().strip()
+        if "stored_components" in self.tool_data and component_to_delete in self.tool_data["stored_components"]:
+            del self.tool_data["stored_components"][component_to_delete]
+        with open(unit_modelling_toolkit_data_file, "w",  encoding="utf-8") as f:
+            json.dump(self.tool_data, f, ensure_ascii=False, indent=3)
+
+    def on_select_component(self):
+        cmds.select(cl=True)
+        selected_component_gp = self.component_dropdown.currentText().strip()
+        components_to_select = self.tool_data.get("stored_components", {}).get(selected_component_gp, None)
+        if components_to_select is None:
+            return
+        print(components_to_select)
+        try:
+            cmds.select(components_to_select)
+        except:
+            cmds.inViewMessage(amg='<span style="color:#FF0000;">Selection failed</span>', 
+                    pos='botRight', 
+                    fade=True)
+        
+    def toggle_mode(self):
+        if self.mode_select_box.isChecked():
+            self.stacked_widget.setCurrentIndex(0)
+        else:
+            self.stacked_widget.setCurrentIndex(1)
         
 
 def show_window():
